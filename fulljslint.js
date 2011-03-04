@@ -496,6 +496,7 @@ var JSLINT = (function () {
             expected_selector_a: "Expected a CSS selector, and instead saw {a}.",
             expected_small_a: "Expected a small number and instead saw '{a}'",
             expected_space_a_b: "Expected exactly one space between '{a}' and '{b}'.",
+            expected_space_z_a_b: "Expected zero or one space between '{a}' and '{b}'.",
             expected_string_a: "Expected a string and instead saw {a}.",
             expected_style_attribute: "Excepted a style attribute, and instead saw '{a}'.",
             expected_style_pattern: "Expected a style pattern, and instead saw '{a}'.",
@@ -972,7 +973,8 @@ var JSLINT = (function () {
             ';' : true,
             '"' : true,
             '\'': true,
-            ')' : true
+            ')' : true,
+            '}' : true
         },
         src,
         stack,
@@ -2292,10 +2294,12 @@ klass:                                  do {
 
 // If the token is not an edge, but is the first token on the line.
 
-                } else if (nexttoken.line !== token.line &&
-                        nexttoken.from < indent.at + (indent.mode ===
-                        'expression' ? 0 : option.indent)) {
-                    expected_at(indent.at + option.indent);
+                } else if (nexttoken.line !== token.line) {
+                    indent.wrap = true;
+                    if (nexttoken.from < indent.at + (indent.mode ===
+                            'expression' ? 0 : option.indent)) {
+                        expected_at(indent.at + option.indent);
+                    }
                 }
             } else if (nexttoken.line !== token.line) {
                 if (nexttoken.edge) {
@@ -2303,7 +2307,7 @@ klass:                                  do {
                 } else {
                     indent.wrap = true;
                     if (indent.mode === 'statement' || indent.mode === 'var') {
-                        expected_at(indent.at + option.indent);
+                        expected_at(indent.at + (option.elsecatch && /else|catch|finally/.test(nexttoken.value)? 0 : option.indent));
                     } else if (nexttoken.from < indent.at + (indent.mode ===
                             'expression' ? 0 : option.indent)) {
                         expected_at(indent.at + option.indent);
@@ -2518,13 +2522,13 @@ loop:   for (;;) {
 
 // Functions for conformance of whitespace.
 
-    function one_space(left, right) {
+    function one_space(left, right, allowzero) {
         left = left || token;
         right = right || nexttoken;
         if (right.id !== '(end)' && option.white &&
                 (token.line !== right.line ||
-                token.thru + 1 !== right.from)) {
-            warn(bundle.expected_space_a_b, right, token.value, right.value);
+                (token.thru + 1 !== right.from && (!allowzero || token.thru !== right.from)))) {
+            warn((allowzero? bundle.expected_space_z_a_b : bundle.expected_space_a_b), right, token.value, right.value);
         }
     }
 
@@ -2790,7 +2794,7 @@ loop:   for (;;) {
         reserve_name(x);
         x.nud = (typeof f === 'function') ? f : function () {
             if (s === 'typeof') {
-                one_space();
+                one_space(null, null, option.operator);
             } else {
                 no_space_only();
             }
@@ -2846,7 +2850,9 @@ loop:   for (;;) {
         x.led = function (left) {
             this.arity = 'infix';
             if (!w) {
-                spaces(prevtoken, token);
+                if (!option.operator || s !== "?") {
+                    spaces(prevtoken, token);
+                }
                 spaces();
             }
             if (typeof f === 'function') {
@@ -2994,7 +3000,7 @@ loop:   for (;;) {
 
     function bitwise(s, p) {
         return infix(s, p, function (left, that) {
-            if (option.bitwise) {
+            if (!option.bitwise) {
                 warn(bundle.unexpected_a, that);
             }
             that.first = left;
@@ -3812,7 +3818,9 @@ loop:   for (;;) {
         discard();
         if (value.id === 'function') {
             if (nexttoken.id === '(') {
-                warn(bundle.move_invocation);
+                if (!option.funcinvoke) {
+                    warn(bundle.move_invocation);
+                }
             } else {
                 warn(bundle.bad_wrap, this);
             }
@@ -4217,7 +4225,7 @@ loop:   for (;;) {
     });
 
     prefix('function', function () {
-        one_space();
+        one_space(null, null, option.operator);
         var i = optional_identifier();
         if (i) {
             no_space();
@@ -4246,8 +4254,13 @@ loop:   for (;;) {
         one_space();
         this.block = block(true);
         if (nexttoken.id === 'else') {
-            one_space();
+            if (!option.elsecatch) {
+                one_space();
+            }
             advance('else');
+            if (option.elsecatch) {
+                indent.wrap = false;
+            }
             discard();
             one_space();
             this['else'] = nexttoken.id === 'if' || nexttoken.id === 'switch' ?
@@ -4274,8 +4287,13 @@ loop:   for (;;) {
         this.arity = 'statement';
         this.block = block(false);
         if (nexttoken.id === 'catch') {
-            one_space();
+            if (!option.elsecatch) {
+                one_space();
+            }
             advance('catch');
+            if (option.elsecatch) {
+                indent.wrap = false;
+            }
             discard();
             one_space();
             t = nexttoken;
@@ -4304,9 +4322,14 @@ loop:   for (;;) {
         }
         if (nexttoken.id === 'finally') {
             discard();
-            one_space();
+            if (!option.elsecatch) {
+                one_space();
+            }
             t = nexttoken;
             advance('finally');
+            if (option.elsecatch) {
+                indent.wrap = false;
+            }
             discard();
             one_space();
             this.third = block(false);
@@ -4665,7 +4688,7 @@ loop:   for (;;) {
             if (nexttoken.id === '/' || nexttoken.id === '(regexp)') {
                 warn(bundle.wrap_regexp);
             }
-            this.first = expression(20);
+            this.first = expression(19); // AMB: Crockford gets the wrong binding power here
         }
         return this;
     });
@@ -4674,7 +4697,7 @@ loop:   for (;;) {
     disrupt_stmt('throw', function () {
         this.arity = 'statement';
         one_space_only();
-        this.first = expression(20);
+        this.first = expression(19);
         return this;
     });
 
