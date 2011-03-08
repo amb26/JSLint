@@ -935,6 +935,7 @@ var JSLINT = (function () {
         indent,
         json_mode,
         lines,
+        oklines,
         lookahead,
         member,
         members_only,
@@ -1318,6 +1319,9 @@ var JSLINT = (function () {
         offender = offender || nexttoken;  // `~
         line = offender.line || 0;
         character = offender.from || 0;
+        if (oklines[line]) {
+            return;
+        }
         warning = {
             id: '(error)',
             raw: message,
@@ -1410,6 +1414,9 @@ var JSLINT = (function () {
             character = 1;
             source_row = lines[line];
             line += 1;
+            if (source_row.indexOf("jslint:ok") !== -1) {
+                oklines[line] = true;
+            }
             at = source_row.search(/ \t/);
             if (at >= 0) {
                 warn_at(bundle.mixed, line, at + 1);
@@ -1486,6 +1493,7 @@ var JSLINT = (function () {
                 } else {
                     lines = source;
                 }
+                oklines = [];
                 line = 0;
                 next_line();
                 from = 1;

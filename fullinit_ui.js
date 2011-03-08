@@ -21,6 +21,9 @@ ADSAFE.lib("init_ui", function (lib) {
     "use strict";
 
     return function (dom) {
+        var fluidicparts = ["white", "elsecatch", "operator", "funcinvoke", "undef", "newcap",
+            "regexp", "browser", "devel", "forin", "continue"];
+      
         var checkboxes = dom.q('input_checkbox'),
             goodparts = checkboxes.q('&goodpart'),
             indent = dom.q('#JSLINT_INDENT'),
@@ -165,6 +168,17 @@ ADSAFE.lib("init_ui", function (lib) {
                 option[bunch.getTitle()] = true;
             });
             option.indent = 4;
+            show_options();
+        });
+        
+        dom.q('#JSLINT_FLUIDICPARTS').on('click', function(e) {
+            option = {
+                indent: 4,
+                maxerr: 100
+            };
+            for (var i = 0; i < fluidicparts.length; ++ i) {
+                option[fluidicparts[i]] = true;
+            }
             show_options();
         });
 
