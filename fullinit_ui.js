@@ -22,7 +22,7 @@ ADSAFE.lib("init_ui", function (lib) {
 
     return function (dom) {
         var fluidicparts = ["white", "funcinvoke", "undef", "newcap",
-            "regexp", "browser", "devel", "forin", "continue"];
+            "regexp", "browser", "forin", "continue"];
       
         var checkboxes = dom.q('input_checkbox'),
             goodparts = checkboxes.q('&goodpart'),
